@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bot Deriv</title>
+    <style>
+        body { font-family: Arial; background: #0a0e27; color: white; padding: 20px; }
+        input, button { padding: 10px; margin: 5px; border-radius: 5px; }
+        button { background: #00b3a1; border: none; color: white; cursor: pointer; }
+        button:hover { background: #008c7a; }
+        pre { background: #1e1e2f; padding: 10px; border-radius: 5px; }
+        .card { background: #1e1e2f; padding: 15px; border-radius: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Bot de Trading Deriv</h1>
+    <div class="card">
+        <label>App ID: <input type="text" id="appId" placeholder="Ej: 1089" value="1089"></label><br>
+        <label>Token API: <input type="password" id="token" placeholder="Tu token de Deriv" size="50"></label><br>
+        <button onclick="conectar()">🔌 Conectar a Deriv</button>
+    </div>
+    <div class="card">
+        <label>Símbolo: <input id="symbol" value="R_100"></label><br>
+        <label>Monto (USD): <input id="amount" value="1"></label><br>
+        <label>Duración (ticks): <input id="duration" value="5"></label><br>
+        <button onclick="comprar()">💰 Comprar CALL</button>
+    </div>
+    <div class="card">
+        <h3>📡 Logs</h3>
+        <pre id="log">Esperando conexión...</pre>
+    </div>
+    <script>
+        async function conectar() {
+            const token = document.getElementById('token').value;
+            const appId = document.getElementById('appId').value;
+            const res = await fetch('/api/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, app_id: appId })
+            });
+            const data = await res.json();
+            document.getElementById('log').innerText = JSON.stringify(data, null, 2);
+        }
+        async function comprar() {
+            const symbol = document.getElementById('symbol').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const duration = parseInt(document.getElementById('duration').value);
+            const res = await fetch('/api/buy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol, amount, duration })
+            });
+            const data = await res.json();
+            document.getElementById('log').innerText = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
