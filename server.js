@@ -8,77 +8,76 @@ app.use(express.static('public'));
 
 let derivWS = null;
 let isConnected = false;
-let currentToken = null;
-let balance = 0;
-let orders = [];
 
 app.post('/api/connect', (req, res) => {
     const { token, app_id } = req.body;
-    if (!token) return res.json({ error: 'Token requerido' });
+    console.log('Intentando conectar con token:', token ? 'Token recibido' : 'No token');
     
-    currentToken = token;
-    derivWS = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${app_id || '1089'}`);
+    if (!token) {
+        return res.json({ error: 'Token requerido' });
+    }
     
-    derivWS.on('open', () => {
-        derivWS.send(JSON.stringify({ authorize: token }));
-    });
-    
-    derivWS.on('message', (data) => {
-        const msg = JSON.parse(data);
+    try {
+        derivWS = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${app_id || '1089'}`);
         
-        if (msg.msg_type === 'authorize') {
-            isConnected = true;
-            // Obtener saldo después de conectar
-            derivWS.send(JSON.stringify({ balance: 1 }));
-            res.json({ success: true, message: 'Conectado a Deriv', loginid: msg.authorize.loginid });
-        }
+        derivWS.on('open', () => {
+            console.log('WebSocket abierto, autorizando...');
+            derivWS.send(JSON.stringify({ authorize: token }));
+        });
         
-        if (msg.msg_type === 'balance') {
-            balance = msg.balance.balance;
-        }
+        derivWS.on('message', (data) => {
+            const msg = JSON.parse(data);
+            console.log('Mensaje recibido:', msg.msg_type);
+            
+            if (msg.msg_type === 'authorize') {
+                isConnected = true;
+                console.log('Autorizado correctamente');
+                res.json({ success: true, message: 'Conectado a Deriv', loginid: msg.authorize.loginid });
+            }
+            
+            if (msg.msg_type === 'error') {
+                console.log('Error de Deriv:', msg.error);
+                res.json({ error: msg.error.message });
+            }
+        });
         
-        if (msg.msg_type === 'buy') {
-            const order = {
-                id: msg.buy.contract_id,
-                price: msg.buy.longcode,
-                time: new Date().toLocaleTimeString(),
-                status: 'Abierta'
-            };
-            orders.unshift(order);
-            if (orders.length > 10) orders.pop();
-        }
-    });
-    
-    setTimeout(() => {
-        if (!isConnected) res.json({ error: 'Timeout de conexión' });
-    }, 10000);
+        derivWS.on('error', (error) => {
+            console.log('Error WebSocket:', error);
+            res.json({ error: 'Error de conexión WebSocket' });
+        });
+        
+        setTimeout(() => {
+            if (!isConnected) {
+                console.log('Timeout de conexión');
+                res.json({ error: 'Timeout de conexión - Revisa tu token' });
+            }
+        }, 10000);
+        
+    } catch (error) {
+        console.log('Error general:', error);
+        res.json({ error: 'Error interno: ' + error.message });
+    }
 });
 
 app.post('/api/buy', (req, res) => {
     if (!derivWS || !isConnected) {
-        return res.json({ error: 'No conectado a Deriv' });
+        return res.json({ error: 'No conectado a Deriv - Primero conecta con tu token' });
     }
+    
     const { symbol = "R_100", amount = 1, duration = 5, contract_type = "CALL" } = req.body;
+    console.log('Comprando:', { symbol, amount, duration, contract_type });
+    
     derivWS.send(JSON.stringify({
         buy: 1,
         parameters: { symbol, amount, contract_type, duration, duration_unit: "t" }
     }));
+    
     res.json({ success: true, message: 'Orden enviada', type: contract_type });
 });
 
-app.get('/api/balance', (req, res) => {
-    if (!derivWS || !isConnected) {
-        return res.json({ error: 'No conectado' });
-    }
-    derivWS.send(JSON.stringify({ balance: 1 }));
-    setTimeout(() => {
-        res.json({ balance: balance });
-    }, 500);
-});
-
-app.get('/api/orders', (req, res) => {
-    res.json({ orders: orders });
+app.get('/api/status', (req, res) => {
+    res.json({ connected: isConnected });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
